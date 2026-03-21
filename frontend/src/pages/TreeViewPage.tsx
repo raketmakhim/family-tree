@@ -1,124 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Tree from "react-d3-tree";
-import { RawNodeDatum, CustomNodeElementProps } from "react-d3-tree";
+import { CustomNodeElementProps } from "react-d3-tree";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { COLORS } from "../styles/colors";
-import { Person, Relationship, TreeData } from "../types";
+import { Person, TreeData } from "../types";
 import PersonForm from "../components/PersonForm";
 import RelationshipForm from "../components/RelationshipForm";
-
-// Custom path: short stubs up/down from the horizontal connector only.
-// Avoids drawing full verticals that pass through the node area.
-const stubPath = ({ source, target }: { source: { x: number; y: number }; target: { x: number; y: number } }) => {
-  const midY = (source.y + target.y) / 2;
-  const stub = 22;
-  return `M ${source.x},${midY - stub} L ${source.x},${midY} L ${target.x},${midY} L ${target.x},${midY + stub}`;
-};
-
-// Convert flat people + relationships into react-d3-tree format.
-// Rules:
-//   - Couples (SPOUSE) are rendered as a single node showing both names.
-//   - A spouse with no parents is absorbed into the couple node and removed as a root.
-//   - A spouse who has parents appears in their own family subtree; their name is still
-//     shown on the partner's node but they are NOT duplicated.
-//   - Children shared by two parents only appear once (under the first parent processed).
-//   - Siblings are sorted oldest → youngest (left → right) by DOB.
-function buildTreeData(people: Person[], relationships: Relationship[]): RawNodeDatum {
-  const parentRels = relationships.filter((r) => r.type === "PARENT");
-  const spouseRels = relationships.filter((r) => r.type === "SPOUSE");
-  const hasParent = new Set(parentRels.map((r) => r.toPersonId));
-
-  // Global set — once placed in the tree a person won't appear again.
-  const placed = new Set<string>();
-
-  function sortByDob(arr: Person[]): Person[] {
-    return arr.sort((a, b) => {
-      if (!a.dob && !b.dob) return 0;
-      if (!a.dob) return 1;
-      if (!b.dob) return -1;
-      return a.dob.localeCompare(b.dob);
-    });
-  }
-
-  function buildNode(person: Person, ancestors: Set<string>): RawNodeDatum {
-    placed.add(person.personId);
-    const newAncestors = new Set(ancestors);
-    newAncestors.add(person.personId);
-
-    // Find a spouse without parents who hasn't been placed yet — absorb them.
-    const absorbedSpouse = spouseRels
-      .filter((r) => r.fromPersonId === person.personId && !hasParent.has(r.toPersonId) && !placed.has(r.toPersonId))
-      .map((r) => people.find((p) => p.personId === r.toPersonId))
-      .filter((p): p is Person => !!p)[0];
-
-    // Find a spouse WITH parents — show name only, don't absorb.
-    const linkedSpouse = !absorbedSpouse
-      ? spouseRels
-          .filter((r) => r.fromPersonId === person.personId && hasParent.has(r.toPersonId) && !placed.has(r.toPersonId))
-          .map((r) => people.find((p) => p.personId === r.toPersonId))
-          .filter((p): p is Person => !!p)[0]
-      : undefined;
-
-    const spouse = absorbedSpouse ?? linkedSpouse;
-    if (absorbedSpouse) {
-      placed.add(absorbedSpouse.personId);
-      newAncestors.add(absorbedSpouse.personId);
-    }
-
-    // Collect children from both partners, deduplicated, excluding ancestors.
-    const unitIds = [person.personId, ...(spouse ? [spouse.personId] : [])];
-    const childIdSet = new Set<string>();
-    for (const pid of unitIds) {
-      parentRels
-        .filter((r) => r.fromPersonId === pid && !placed.has(r.toPersonId) && !newAncestors.has(r.toPersonId))
-        .forEach((r) => childIdSet.add(r.toPersonId));
-    }
-
-    const children = sortByDob(
-      Array.from(childIdSet)
-        .map((id) => people.find((p) => p.personId === id))
-        .filter((p): p is Person => !!p)
-    ).map((p) => buildNode(p, newAncestors));
-
-    return {
-      name: person.name || "Unknown",
-      attributes: {
-        personId: person.personId,
-        personName: person.name || "Unknown",
-        dob: person.dob ?? "",
-        spouseId: spouse?.personId ?? "",
-        spouseName: spouse ? (spouse.name || "Unknown") : "",
-        spouseDob: spouse?.dob ?? "",
-      },
-      children: children.length > 0 ? children : undefined,
-    };
-  }
-
-  if (people.length === 0) return { name: "Empty tree", children: [] };
-
-  const roots = people.filter((p) => !hasParent.has(p.personId));
-
-  // A rootless person whose spouse HAS parents will be absorbed as an
-  // absorbedSpouse when that spouse's subtree is built. Processing them
-  // as a root first would steal their spouse's children and break the tree.
-  const willBeAbsorbed = new Set(
-    roots
-      .filter((r) => spouseRels.some((s) => s.fromPersonId === r.personId && hasParent.has(s.toPersonId)))
-      .map((r) => r.personId)
-  );
-
-  const rootNodes: RawNodeDatum[] = [];
-  for (const root of roots) {
-    if (!placed.has(root.personId) && !willBeAbsorbed.has(root.personId)) {
-      rootNodes.push(buildNode(root, new Set()));
-    }
-  }
-
-  if (rootNodes.length === 1) return rootNodes[0];
-  return { name: "Family", children: rootNodes };
-}
+import TreeNode from "../components/TreeNode";
+import { buildTreeData, stubPath } from "../utils/buildTreeData";
+import { exportTreePdf } from "../utils/pdfExport";
 
 type Modal = "addPerson" | "addRelationship" | "addMember" | null;
 
@@ -195,106 +86,27 @@ export default function TreeViewPage() {
     setSelectedPerson(data.people.find((p) => p.personId === personId) ?? null);
   }, [data]);
 
-  const renderNode = ({ nodeDatum }: CustomNodeElementProps) => {
-    const attrs = nodeDatum.attributes ?? {};
-    const personId = attrs.personId as string | undefined;
-    const spouseId = attrs.spouseId as string | undefined;
-    const spouseName = attrs.spouseName as string | undefined;
-    const spouseDob = attrs.spouseDob as string | undefined;
-    const dob = attrs.dob as string | undefined;
-    const isPersonSel = selectedPerson?.personId === personId;
-    const isSpouseSel = selectedPerson?.personId === spouseId;
-
-    const R = 28; // circle radius (all nodes)
-
-    if (spouseId) {
-      // Couple node — two circles side by side with ♥ between, names below
-      const cx = R + 25; // distance from centre to each circle centre
-      return (
-        <g>
-          {/* Left circle — primary person */}
-          <g onClick={() => personId && selectById(personId)} style={{ cursor: "pointer" }}>
-            <circle cx={-cx} cy={0} r={R}
-              fill={isPersonSel ? COLORS.primary : COLORS.primaryLight}
-              stroke={COLORS.primary} strokeWidth={2} />
-            <text textAnchor="middle" x={-cx} y={R + 16} fontSize={13} fontWeight={500}
-              textRendering="geometricPrecision"
-              paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
-              fill={COLORS.text}>
-              {nodeDatum.name}
-            </text>
-            {dob && (
-              <text textAnchor="middle" x={-cx} y={R + 31} fontSize={11}
-                textRendering="geometricPrecision"
-                paintOrder="stroke" stroke="white" strokeWidth={3} strokeLinejoin="round"
-                fill={COLORS.muted}>
-                {dob}
-              </text>
-            )}
-          </g>
-          {/* Heart */}
-          <text textAnchor="middle" x={0} y={5} fontSize={13} fill={COLORS.accent}
-            style={{ pointerEvents: "none" }}>♥</text>
-          {/* Right circle — spouse */}
-          <g onClick={() => selectById(spouseId)} style={{ cursor: "pointer" }}>
-            <circle cx={cx} cy={0} r={R}
-              fill={isSpouseSel ? COLORS.primary : COLORS.primaryLight}
-              stroke={COLORS.primary} strokeWidth={2} />
-            <text textAnchor="middle" x={cx} y={R + 16} fontSize={13} fontWeight={500}
-              textRendering="geometricPrecision"
-              paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
-              fill={COLORS.text}>
-              {spouseName || "Unknown"}
-            </text>
-            {spouseDob && (
-              <text textAnchor="middle" x={cx} y={R + 31} fontSize={11}
-                textRendering="geometricPrecision"
-                paintOrder="stroke" stroke="white" strokeWidth={3} strokeLinejoin="round"
-                fill={COLORS.muted}>
-                {spouseDob}
-              </text>
-            )}
-          </g>
-        </g>
-      );
-    }
-
-    // Single person — circle, name below
-    return (
-      <g onClick={() => personId && selectById(personId)} style={{ cursor: "pointer" }}>
-        <circle r={R}
-          fill={isPersonSel ? COLORS.primary : COLORS.primaryLight}
-          stroke={COLORS.primary} strokeWidth={2} />
-        <text textAnchor="middle" y={R + 16} fontSize={13} fontWeight={500}
-          textRendering="geometricPrecision"
-          paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
-          fill={COLORS.text}>
-          {nodeDatum.name}
-        </text>
-        {dob && (
-          <text textAnchor="middle" y={R + 31} fontSize={11}
-            textRendering="geometricPrecision"
-            paintOrder="stroke" stroke="white" strokeWidth={3} strokeLinejoin="round"
-            fill={COLORS.muted}>
-            {dob}
-          </text>
-        )}
-      </g>
-    );
-  };
-
   if (loading) return <div className="page"><p>Loading...</p></div>;
   if (error) return <div className="page"><p className="error">{error}</p></div>;
   if (!data) return null;
 
   const treeData = buildTreeData(data.people, data.relationships);
+  const treeName = data.tree.name || "Family Tree";
+
+  const renderNode = ({ nodeDatum }: CustomNodeElementProps) => (
+    <TreeNode
+      nodeDatum={nodeDatum}
+      selectedPersonId={selectedPerson?.personId}
+      onSelect={selectById}
+    />
+  );
 
   return (
     <div className="tree-page">
       {/* Header */}
       <header className="page-header">
         <button className="btn-secondary" onClick={() => navigate("/trees")}>← Trees</button>
-        <h1>{data.tree.name || "Unnamed Tree"}</h1>
+        <h1>{treeName}</h1>
         <span />
       </header>
 
@@ -332,6 +144,15 @@ export default function TreeViewPage() {
               )}
             </div>
           )}
+
+          <div className="editor-actions">
+            <h4>Export</h4>
+            <div className="button-stack">
+              <button className="btn-secondary" onClick={() => exportTreePdf(treeName, treeData)}>
+                Download PDF
+              </button>
+            </div>
+          </div>
 
           {isEditor && (
             <div className="editor-actions">
