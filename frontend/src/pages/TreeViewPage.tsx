@@ -4,9 +4,18 @@ import Tree from "react-d3-tree";
 import { RawNodeDatum, CustomNodeElementProps } from "react-d3-tree";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { COLORS } from "../styles/colors";
 import { Person, Relationship, TreeData } from "../types";
 import PersonForm from "../components/PersonForm";
 import RelationshipForm from "../components/RelationshipForm";
+
+// Custom path: short stubs up/down from the horizontal connector only.
+// Avoids drawing full verticals that pass through the node area.
+const stubPath = ({ source, target }: { source: { x: number; y: number }; target: { x: number; y: number } }) => {
+  const midY = (source.y + target.y) / 2;
+  const stub = 22;
+  return `M ${source.x},${midY - stub} L ${source.x},${midY} L ${target.x},${midY} L ${target.x},${midY + stub}`;
+};
 
 // Convert flat people + relationships into react-d3-tree format.
 // Rules:
@@ -90,9 +99,19 @@ function buildTreeData(people: Person[], relationships: Relationship[]): RawNode
   if (people.length === 0) return { name: "Empty tree", children: [] };
 
   const roots = people.filter((p) => !hasParent.has(p.personId));
+
+  // A rootless person whose spouse HAS parents will be absorbed as an
+  // absorbedSpouse when that spouse's subtree is built. Processing them
+  // as a root first would steal their spouse's children and break the tree.
+  const willBeAbsorbed = new Set(
+    roots
+      .filter((r) => spouseRels.some((s) => s.fromPersonId === r.personId && hasParent.has(s.toPersonId)))
+      .map((r) => r.personId)
+  );
+
   const rootNodes: RawNodeDatum[] = [];
   for (const root of roots) {
-    if (!placed.has(root.personId)) {
+    if (!placed.has(root.personId) && !willBeAbsorbed.has(root.personId)) {
       rootNodes.push(buildNode(root, new Set()));
     }
   }
@@ -176,8 +195,6 @@ export default function TreeViewPage() {
     setSelectedPerson(data.people.find((p) => p.personId === personId) ?? null);
   }, [data]);
 
-  const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n - 1) + "…" : s;
-
   const renderNode = ({ nodeDatum }: CustomNodeElementProps) => {
     const attrs = nodeDatum.attributes ?? {};
     const personId = attrs.personId as string | undefined;
@@ -188,42 +205,52 @@ export default function TreeViewPage() {
     const isPersonSel = selectedPerson?.personId === personId;
     const isSpouseSel = selectedPerson?.personId === spouseId;
 
+    const R = 28; // circle radius (all nodes)
+
     if (spouseId) {
-      // Couple node — two panels side by side with ♥ between
-      const PW = 100; // panel width
-      const PH = 32;  // panel half-height
-      const gap = 10; // half-gap for heart
+      // Couple node — two circles side by side with ♥ between, names below
+      const cx = R + 25; // distance from centre to each circle centre
       return (
         <g>
-          {/* Left panel — primary person */}
+          {/* Left circle — primary person */}
           <g onClick={() => personId && selectById(personId)} style={{ cursor: "pointer" }}>
-            <rect x={-(PW + gap)} y={-PH} width={PW} height={PH * 2} rx={7}
-              fill={isPersonSel ? "#4f46e5" : "#e0e7ff"} stroke="#4f46e5" strokeWidth={2} />
-            <text textAnchor="middle" x={-(gap + PW / 2)} y={-6} fontSize={11}
-              fill={isPersonSel ? "#fff" : "#1e1b4b"}>
-              {trunc(nodeDatum.name, 12)}
+            <circle cx={-cx} cy={0} r={R}
+              fill={isPersonSel ? COLORS.primary : COLORS.primaryLight}
+              stroke={COLORS.primary} strokeWidth={2} />
+            <text textAnchor="middle" x={-cx} y={R + 16} fontSize={13} fontWeight={500}
+              textRendering="geometricPrecision"
+              paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
+              fill={COLORS.text}>
+              {nodeDatum.name}
             </text>
             {dob && (
-              <text textAnchor="middle" x={-(gap + PW / 2)} y={10} fontSize={9}
-                fill={isPersonSel ? "#c7d2fe" : "#6b7280"}>
+              <text textAnchor="middle" x={-cx} y={R + 31} fontSize={11}
+                textRendering="geometricPrecision"
+                paintOrder="stroke" stroke="white" strokeWidth={3} strokeLinejoin="round"
+                fill={COLORS.muted}>
                 {dob}
               </text>
             )}
           </g>
           {/* Heart */}
-          <text textAnchor="middle" x={0} y={5} fontSize={14} fill="#9333ea"
+          <text textAnchor="middle" x={0} y={5} fontSize={13} fill={COLORS.accent}
             style={{ pointerEvents: "none" }}>♥</text>
-          {/* Right panel — spouse */}
+          {/* Right circle — spouse */}
           <g onClick={() => selectById(spouseId)} style={{ cursor: "pointer" }}>
-            <rect x={gap} y={-PH} width={PW} height={PH * 2} rx={7}
-              fill={isSpouseSel ? "#4f46e5" : "#e0e7ff"} stroke="#4f46e5" strokeWidth={2} />
-            <text textAnchor="middle" x={gap + PW / 2} y={-6} fontSize={11}
-              fill={isSpouseSel ? "#fff" : "#1e1b4b"}>
-              {trunc(spouseName || "Unknown", 12)}
+            <circle cx={cx} cy={0} r={R}
+              fill={isSpouseSel ? COLORS.primary : COLORS.primaryLight}
+              stroke={COLORS.primary} strokeWidth={2} />
+            <text textAnchor="middle" x={cx} y={R + 16} fontSize={13} fontWeight={500}
+              textRendering="geometricPrecision"
+              paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
+              fill={COLORS.text}>
+              {spouseName || "Unknown"}
             </text>
             {spouseDob && (
-              <text textAnchor="middle" x={gap + PW / 2} y={10} fontSize={9}
-                fill={isSpouseSel ? "#c7d2fe" : "#6b7280"}>
+              <text textAnchor="middle" x={cx} y={R + 31} fontSize={11}
+                textRendering="geometricPrecision"
+                paintOrder="stroke" stroke="white" strokeWidth={3} strokeLinejoin="round"
+                fill={COLORS.muted}>
                 {spouseDob}
               </text>
             )}
@@ -232,15 +259,23 @@ export default function TreeViewPage() {
       );
     }
 
-    // Single person — circle
+    // Single person — circle, name below
     return (
       <g onClick={() => personId && selectById(personId)} style={{ cursor: "pointer" }}>
-        <circle r={32} fill={isPersonSel ? "#4f46e5" : "#e0e7ff"} stroke="#4f46e5" strokeWidth={2} />
-        <text textAnchor="middle" y={-5} fontSize={11} fill={isPersonSel ? "#fff" : "#1e1b4b"}>
-          {trunc(nodeDatum.name, 12)}
+        <circle r={R}
+          fill={isPersonSel ? COLORS.primary : COLORS.primaryLight}
+          stroke={COLORS.primary} strokeWidth={2} />
+        <text textAnchor="middle" y={R + 16} fontSize={13} fontWeight={500}
+          textRendering="geometricPrecision"
+          paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
+          fill={COLORS.text}>
+          {nodeDatum.name}
         </text>
         {dob && (
-          <text textAnchor="middle" y={10} fontSize={9} fill={isPersonSel ? "#c7d2fe" : "#6b7280"}>
+          <text textAnchor="middle" y={R + 31} fontSize={11}
+            textRendering="geometricPrecision"
+            paintOrder="stroke" stroke="white" strokeWidth={3} strokeLinejoin="round"
+            fill={COLORS.muted}>
             {dob}
           </text>
         )}
@@ -273,10 +308,10 @@ export default function TreeViewPage() {
               data={treeData}
               orientation="vertical"
               translate={translate}
-              nodeSize={{ x: 240, y: 140 }}
-              separation={{ siblings: 1.5, nonSiblings: 2 }}
+              nodeSize={{ x: 200, y: 160 }}
+              separation={{ siblings: 0.7, nonSiblings: 1 }}
               renderCustomNodeElement={renderNode}
-              pathFunc="step"
+              pathFunc={stubPath as any}
             />
           )}
         </div>
