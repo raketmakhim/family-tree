@@ -1,0 +1,23 @@
+{
+  "name": "family-tree-backend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js",
+    "watch": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --watch"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1014.0",
+    "@aws-sdk/client-ssm": "^3.1014.0",
+    "@aws-sdk/lib-dynamodb": "^3.1014.0",
+    "jsonwebtoken": "^9.0.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.161",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.5.0",
+    "@types/uuid": "^11.0.0",
+    "typescript": "^5.9.3",
+    "esbuild": "^0.25.0"
+  }
+}

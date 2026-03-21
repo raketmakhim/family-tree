@@ -1,0 +1,11 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit it.
+
+viewer_username = "viewer"
+viewer_password = "change-me"
+
+editor_username = "editor"
+editor_password = "change-me"
+
+# Generate with: openssl rand -hex 32
+jwt_secret = "change-me"
