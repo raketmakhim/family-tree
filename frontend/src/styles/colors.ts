@@ -5,4 +5,6 @@ export const COLORS = {
   text: "#1e1b4b",
   muted: "#6b7280",
   accent: "#53b7e6",
+  marriedIn: "#f59e0b",       // amber stroke for married-in spouse
+  marriedInLight: "#fef3c7",  // light amber fill for married-in spouse
 };

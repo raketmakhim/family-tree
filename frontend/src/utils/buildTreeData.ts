@@ -89,6 +89,7 @@ export function buildTreeData(people: Person[], relationships: Relationship[]): 
         spouseId: spouse?.personId ?? "",
         spouseName: spouse ? (spouse.name || "Unknown") : "",
         spouseDob: spouse?.dob ?? "",
+        spouseMarriedIn: absorbedSpouse ? "true" : "false",
       },
       children: children.length > 0 ? children : undefined,
     };

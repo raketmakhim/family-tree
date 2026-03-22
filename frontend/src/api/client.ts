@@ -51,4 +51,9 @@ export const api = {
     request<Relationship[]>("POST", "/relationships", { fromPersonId, toPersonId, type }),
   removeRelationship: (fromPersonId: string, toPersonId: string, type: "PARENT" | "SIBLING" | "SPOUSE") =>
     request<void>("DELETE", "/relationships", { fromPersonId, toPersonId, type }),
+
+  backupTree: (treeId: string) =>
+    request<{ lastBackupDate: string }>("POST", `/trees/${treeId}/backup`),
+  restoreTree: (treeId: string, payload: object) =>
+    request<void>("POST", `/trees/${treeId}/restore`, payload),
 };

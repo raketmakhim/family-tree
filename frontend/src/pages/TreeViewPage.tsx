@@ -81,6 +81,41 @@ export default function TreeViewPage() {
     load();
   };
 
+  // Auto-backup: fires silently on first visit of each calendar day
+  useEffect(() => {
+    if (!data || !treeId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (data.tree.lastBackupDate === today) return;
+    api.backupTree(treeId).then(({ lastBackupDate }) => {
+      setData((prev) => prev ? { ...prev, tree: { ...prev.tree, lastBackupDate } } : prev);
+    }).catch(() => {}); // silent — backup failure shouldn't block the UI
+  }, [data?.tree.treeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDownloadJson = () => {
+    const payload = JSON.stringify(
+      { exportedAt: new Date().toISOString(), tree: data!.tree, people: data!.people, relationships: data!.relationships },
+      null, 2
+    );
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${data!.tree.name || "family-tree"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !treeId) return;
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    if (!confirm("This will overwrite the current tree with the backup. Are you sure?")) return;
+    await api.restoreTree(treeId, payload);
+    load();
+  };
+
   const selectById = useCallback((personId: string) => {
     if (!data) return;
     setSelectedPerson(data.people.find((p) => p.personId === personId) ?? null);
@@ -151,8 +186,28 @@ export default function TreeViewPage() {
               <button className="btn-secondary" onClick={() => exportTreePdf(treeName, treeData)}>
                 Download PDF
               </button>
+              <button className="btn-secondary" onClick={handleDownloadJson}>
+                Download JSON
+              </button>
             </div>
+            {data.tree.lastBackupDate && (
+              <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                Last backed up: {data.tree.lastBackupDate}
+              </p>
+            )}
           </div>
+
+          {isEditor && (
+            <div className="editor-actions">
+              <h4>Restore</h4>
+              <div className="button-stack">
+                <label className="btn-secondary" style={{ cursor: "pointer" }}>
+                  Upload backup JSON
+                  <input type="file" accept=".json" style={{ display: "none" }} onChange={handleRestore} />
+                </label>
+              </div>
+            </div>
+          )}
 
           {isEditor && (
             <div className="editor-actions">

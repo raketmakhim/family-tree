@@ -55,6 +55,12 @@ resource "aws_iam_role_policy" "lambda" {
         Effect   = "Allow"
         Action   = ["ssm:GetParameter", "ssm:GetParameters"]
         Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/family-tree/*"
+      },
+      {
+        # S3 — write and read daily backups
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:GetObject"]
+        Resource = "${aws_s3_bucket.backups.arn}/*"
       }
     ]
   })
@@ -73,7 +79,7 @@ data "archive_file" "lambda" {
 resource "aws_lambda_function" "api" {
   function_name    = "family-tree-api"
   role             = aws_iam_role.lambda.arn
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   handler          = "index.handler"
   filename         = data.archive_file.lambda.output_path
   source_code_hash = data.archive_file.lambda.output_base64sha256
@@ -82,11 +88,12 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TREES_TABLE        = aws_dynamodb_table.trees.name
-      TREE_MEMBERS_TABLE = aws_dynamodb_table.tree_members.name
-      PEOPLE_TABLE       = aws_dynamodb_table.people.name
+      TREES_TABLE         = aws_dynamodb_table.trees.name
+      TREE_MEMBERS_TABLE  = aws_dynamodb_table.tree_members.name
+      PEOPLE_TABLE        = aws_dynamodb_table.people.name
       RELATIONSHIPS_TABLE = aws_dynamodb_table.relationships.name
-      AWS_ACCOUNT_REGION = var.aws_region
+      AWS_ACCOUNT_REGION  = var.aws_region
+      BACKUP_BUCKET       = aws_s3_bucket.backups.id
     }
   }
 }
