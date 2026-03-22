@@ -10,6 +10,9 @@ import { v4 as uuidv4 } from "uuid";
 import { db, tables } from "../db/client";
 import { Person } from "../types";
 
+const toTitleCase = (s: string) =>
+  s.replace(/\b\w/g, (c) => c.toUpperCase());
+
 export async function listPeople(): Promise<Person[]> {
   const result = await db.send(new ScanCommand({ TableName: tables.people }));
   return (result.Items ?? []) as Person[];
@@ -22,7 +25,7 @@ export async function createPerson(body: string | null): Promise<Person> {
   const person: Person = {
     personId: uuidv4(),
     createdAt: new Date().toISOString(),
-    ...(name !== undefined && { name }),
+    ...(name !== undefined && { name: toTitleCase(name) }),
     ...(dob !== undefined && { dob }),
   };
 
@@ -32,7 +35,7 @@ export async function createPerson(body: string | null): Promise<Person> {
 
 export async function updatePerson(personId: string, body: string | null): Promise<void> {
   if (!body) throw { status: 400, message: "Missing request body" };
-  const { name, dob } = JSON.parse(body);
+  const { name, dob, marriedIn } = JSON.parse(body);
 
   const setExpressions: string[] = [];
   const names: Record<string, string> = {};
@@ -41,11 +44,15 @@ export async function updatePerson(personId: string, body: string | null): Promi
   if (name !== undefined) {
     setExpressions.push("#name = :name");
     names["#name"] = "name";
-    values[":name"] = name;
+    values[":name"] = toTitleCase(name);
   }
   if (dob !== undefined) {
     setExpressions.push("dob = :dob");
     values[":dob"] = dob;
+  }
+  if (marriedIn !== undefined) {
+    setExpressions.push("marriedIn = :marriedIn");
+    values[":marriedIn"] = marriedIn;
   }
   if (setExpressions.length === 0) throw { status: 400, message: "Nothing to update" };
 

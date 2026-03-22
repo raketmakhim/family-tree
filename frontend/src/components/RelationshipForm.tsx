@@ -1,6 +1,7 @@
 import { useState, FormEvent } from "react";
 import { api } from "../api/client";
 import { Person } from "../types";
+import PersonSearch from "./PersonSearch";
 
 interface Props {
   people: Person[];
@@ -8,21 +9,37 @@ interface Props {
   onCancel: () => void;
 }
 
+interface Row {
+  fromPersonId: string;
+  toPersonId: string;
+  type: "PARENT" | "SIBLING" | "SPOUSE";
+}
+
+const defaultRow = (): Row => ({ fromPersonId: "", toPersonId: "", type: "PARENT" });
+
 export default function RelationshipForm({ people, onSaved, onCancel }: Props) {
-  const [fromPersonId, setFromPersonId] = useState("");
-  const [toPersonId, setToPersonId] = useState("");
-  const [type, setType] = useState<"PARENT" | "SIBLING" | "SPOUSE">("PARENT");
+  const [rows, setRows] = useState<Row[]>([defaultRow()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const updateRow = <K extends keyof Row>(i: number, field: K, val: Row[K]) =>
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+
+  const addRow = () => setRows((prev) => [...prev, defaultRow()]);
+  const removeRow = (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i));
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!fromPersonId || !toPersonId) return setError("Select both people");
-    if (fromPersonId === toPersonId) return setError("Cannot relate a person to themselves");
+    for (const row of rows) {
+      if (!row.fromPersonId || !row.toPersonId) return setError("Select both people for each row");
+      if (row.fromPersonId === row.toPersonId) return setError("Cannot relate a person to themselves");
+    }
     setLoading(true);
     setError("");
     try {
-      await api.addRelationship(fromPersonId, toPersonId, type);
+      for (const row of rows) {
+        await api.addRelationship(row.fromPersonId, row.toPersonId, row.type);
+      }
       onSaved();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to add relationship");
@@ -31,58 +48,55 @@ export default function RelationshipForm({ people, onSaved, onCancel }: Props) {
     }
   };
 
-  const label = (p: Person) => p.name || "Unknown";
-
   return (
     <form onSubmit={handleSubmit}>
-      <h3>Add relationship</h3>
+      <h3>Add {rows.length > 1 ? `${rows.length} relationships` : "relationship"}</h3>
 
-      <div className="field">
-        <label>Type</label>
-        <div className="radio-group">
-          <label>
-            <input type="radio" value="PARENT" checked={type === "PARENT"} onChange={() => setType("PARENT")} />
-            Parent
-          </label>
-          <label>
-            <input type="radio" value="SIBLING" checked={type === "SIBLING"} onChange={() => setType("SIBLING")} />
-            Sibling
-          </label>
-          <label>
-            <input type="radio" value="SPOUSE" checked={type === "SPOUSE"} onChange={() => setType("SPOUSE")} />
-            Spouse
-          </label>
-        </div>
+      <div className="bulk-rows">
+        {rows.map((row, i) => (
+          <div key={i} className="bulk-row rel-row">
+            <div className="rel-row-pickers">
+              <PersonSearch
+                people={people}
+                value={row.fromPersonId}
+                onChange={(id) => updateRow(i, "fromPersonId", id)}
+                exclude={row.toPersonId}
+                placeholder={row.type === "PARENT" ? "Parent..." : "Person A..."}
+              />
+              <select
+                value={row.type}
+                onChange={(e) => updateRow(i, "type", e.target.value as Row["type"])}
+                style={{ width: "auto", flexShrink: 0 }}
+              >
+                <option value="PARENT">Parent of</option>
+                <option value="SIBLING">Sibling of</option>
+                <option value="SPOUSE">Spouse of</option>
+              </select>
+              <PersonSearch
+                people={people}
+                value={row.toPersonId}
+                onChange={(id) => updateRow(i, "toPersonId", id)}
+                exclude={row.fromPersonId}
+                placeholder={row.type === "PARENT" ? "Child..." : "Person B..."}
+              />
+            </div>
+            {rows.length > 1 && (
+              <button type="button" className="btn-danger-sm" onClick={() => removeRow(i)}>✕</button>
+            )}
+          </div>
+        ))}
       </div>
 
-      <div className="field">
-        <label>{type === "PARENT" ? "Parent" : "Person A"}</label>
-        <select value={fromPersonId} onChange={(e) => setFromPersonId(e.target.value)} required>
-          <option value="">Select person...</option>
-          {people.map((p) => (
-            <option key={p.personId} value={p.personId}>{label(p)}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="field">
-        <label>{type === "PARENT" ? "Child" : "Person B"}</label>
-        <select value={toPersonId} onChange={(e) => setToPersonId(e.target.value)} required>
-          <option value="">Select person...</option>
-          {people.filter((p) => p.personId !== fromPersonId).map((p) => (
-            <option key={p.personId} value={p.personId}>{label(p)}</option>
-          ))}
-        </select>
-      </div>
+      <button type="button" className="btn-secondary" style={{ marginBottom: 14 }} onClick={addRow}>
+        + Add another
+      </button>
 
       {error && <p className="error">{error}</p>}
       <div className="form-actions">
         <button type="submit" disabled={loading}>
-          {loading ? "Adding..." : "Add"}
+          {loading ? "Adding..." : rows.length > 1 ? `Add ${rows.length} relationships` : "Add"}
         </button>
-        <button type="button" className="btn-secondary" onClick={onCancel}>
-          Cancel
-        </button>
+        <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );
