@@ -11,7 +11,7 @@ import TreeNode from "../components/TreeNode";
 import { buildTreeData, stubPath } from "../utils/buildTreeData";
 import { exportTreePdf } from "../utils/pdfExport";
 
-type Modal = "addPerson" | "addRelationship" | "addMember" | null;
+type Modal = "addPerson" | "addRelationship" | "addMember" | "addChild" | "addSpouse" | null;
 
 export default function TreeViewPage() {
   const { treeId } = useParams<{ treeId: string }>();
@@ -25,6 +25,10 @@ export default function TreeViewPage() {
   const [modal, setModal] = useState<Modal>(null);
   const [allPeople, setAllPeople] = useState<Person[]>([]);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [quickName, setQuickName] = useState("");
+  const [quickDob, setQuickDob] = useState("");
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickError, setQuickError] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -84,6 +88,30 @@ export default function TreeViewPage() {
   const handleRemoveRelationship = async (rel: { fromPersonId: string; toPersonId: string; type: "PARENT" | "SIBLING" | "SPOUSE" }) => {
     await api.removeRelationship(rel.fromPersonId, rel.toPersonId, rel.type);
     load();
+  };
+
+  const openQuickAdd = (type: "addChild" | "addSpouse") => {
+    setQuickName("");
+    setQuickDob("");
+    setQuickError("");
+    setModal(type);
+  };
+
+  const handleQuickAdd = async (relType: "PARENT" | "SPOUSE") => {
+    if (!treeId || !selectedPerson) return;
+    setQuickLoading(true);
+    setQuickError("");
+    try {
+      const created = await api.createPerson({ name: quickName || undefined, dob: quickDob || undefined });
+      await api.addMember(treeId, created.personId);
+      await api.addRelationship(selectedPerson.personId, created.personId, relType);
+      setModal(null);
+      load();
+    } catch (err: unknown) {
+      setQuickError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setQuickLoading(false);
+    }
   };
 
   // Auto-backup: fires silently on first visit of each calendar day
@@ -184,6 +212,8 @@ export default function TreeViewPage() {
               {isEditor && (
                 <div className="button-stack">
                   <button onClick={() => setModal("addPerson")}>Edit person</button>
+                  <button onClick={() => openQuickAdd("addChild")}>+ Add child</button>
+                  <button onClick={() => openQuickAdd("addSpouse")}>+ Add spouse</button>
                   <button className="btn-danger" onClick={handleRemoveMember}>
                     Remove from tree
                   </button>
@@ -276,6 +306,29 @@ export default function TreeViewPage() {
               onSaved={handleRelationshipSaved}
               onCancel={() => setModal(null)}
             />
+          </div>
+        </div>
+      )}
+
+      {(modal === "addChild" || modal === "addSpouse") && selectedPerson && (
+        <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{modal === "addChild" ? "Add child" : "Add spouse"} for {selectedPerson.name || "Unknown"}</h3>
+            <form onSubmit={(e) => { e.preventDefault(); handleQuickAdd(modal === "addChild" ? "PARENT" : "SPOUSE"); }}>
+              <div className="field">
+                <label>Name (optional)</label>
+                <input type="text" value={quickName} onChange={(e) => setQuickName(e.target.value)} placeholder="Full name" autoFocus />
+              </div>
+              <div className="field">
+                <label>Date of birth (optional)</label>
+                <input type="date" value={quickDob} onChange={(e) => setQuickDob(e.target.value)} />
+              </div>
+              {quickError && <p className="error">{quickError}</p>}
+              <div className="form-actions">
+                <button type="submit" disabled={quickLoading}>{quickLoading ? "Saving..." : "Create"}</button>
+                <button type="button" className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
