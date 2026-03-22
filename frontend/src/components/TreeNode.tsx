@@ -63,7 +63,7 @@ export default function TreeNode({ nodeDatum, selectedPersonId, onSelect, spouse
     return (
       <g>
         {/* Left circle — primary person */}
-        <g onClick={() => personId && onSelect(personId)} style={{ cursor: "pointer" }}>
+        <g data-person-id={personId} onClick={(e) => { e.stopPropagation(); personId && onSelect(personId); }} style={{ cursor: "pointer" }}>
           <circle cx={-cx} cy={0} r={R}
             fill={isPersonSel ? COLORS.primary : COLORS.primaryLight}
             stroke={COLORS.primary} strokeWidth={2} />
@@ -73,7 +73,7 @@ export default function TreeNode({ nodeDatum, selectedPersonId, onSelect, spouse
         <text textAnchor="middle" x={0} y={5} fontSize={13} fill={COLORS.accent}
           style={{ pointerEvents: "none" }}>♥</text>
         {/* Right circle — spouse */}
-        <g onClick={() => onSelect(spouseId)} style={{ cursor: "pointer" }}>
+        <g data-person-id={spouseId} onClick={(e) => { e.stopPropagation(); onSelect(spouseId); }} style={{ cursor: "pointer" }}>
           <circle cx={cx} cy={0} r={R}
             fill={spouseFill}
             stroke={spouseStroke} strokeWidth={2} />
@@ -85,7 +85,7 @@ export default function TreeNode({ nodeDatum, selectedPersonId, onSelect, spouse
 
   // Single person — circle, name below
   return (
-    <g onClick={() => personId && onSelect(personId)} style={{ cursor: "pointer" }}>
+    <g data-person-id={personId} onClick={(e) => { e.stopPropagation(); personId && onSelect(personId); }} style={{ cursor: "pointer" }}>
       <circle r={R}
         fill={isPersonSel ? COLORS.primary : COLORS.primaryLight}
         stroke={COLORS.primary} strokeWidth={2} />
