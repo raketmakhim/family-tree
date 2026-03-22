@@ -157,7 +157,11 @@ export default function PersonForm({ treeId, person, people = [], relationships 
           <>
             <p style={{ fontSize: 13, fontWeight: 500, color: "#475569", margin: "16px 0 8px" }}>Relationships</p>
             <ul className="rel-list" style={{ marginBottom: 4 }}>
-              {relationships.map((r, i) => {
+              {relationships.filter((r, i, arr) => {
+                // SPOUSE and SIBLING may be stored in both directions — deduplicate by canonical pair
+                const key = [r.fromPersonId, r.toPersonId].sort().join("-") + "-" + r.type;
+                return arr.findIndex((r2) => [r2.fromPersonId, r2.toPersonId].sort().join("-") + "-" + r2.type === key) === i;
+              }).map((r, i) => {
                 const otherId = r.fromPersonId === person.personId ? r.toPersonId : r.fromPersonId;
                 const other = people.find((p) => p.personId === otherId);
                 const otherName = other?.name || "Unknown";
