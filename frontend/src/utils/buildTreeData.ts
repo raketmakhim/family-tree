@@ -46,9 +46,21 @@ export function buildTreeData(people: Person[], relationships: Relationship[]): 
     newAncestors.add(person.personId);
 
     // Find a spouse without parents who hasn't been placed yet — absorb them.
+    // Also absorbs in the reverse relationship direction if the other person has marriedIn:true,
+    // so the married-in person always appears on the right regardless of how the relationship was entered.
     const absorbedSpouse = spouseRels
-      .filter((r) => r.fromPersonId === person.personId && !hasParent.has(r.toPersonId) && !placed.has(r.toPersonId))
-      .map((r) => people.find((p) => p.personId === r.toPersonId))
+      .filter((r) => {
+        if (r.fromPersonId === person.personId && !hasParent.has(r.toPersonId) && !placed.has(r.toPersonId)) return true;
+        if (r.toPersonId === person.personId && !hasParent.has(r.fromPersonId) && !placed.has(r.fromPersonId)) {
+          const other = people.find((p) => p.personId === r.fromPersonId);
+          return !!other?.marriedIn;
+        }
+        return false;
+      })
+      .map((r) => {
+        const otherId = r.fromPersonId === person.personId ? r.toPersonId : r.fromPersonId;
+        return people.find((p) => p.personId === otherId);
+      })
       .filter((p): p is Person => !!p)[0];
 
     // Find a spouse WITH parents — show name only, don't absorb.
@@ -102,9 +114,18 @@ export function buildTreeData(people: Person[], relationships: Relationship[]): 
   // A rootless person whose spouse HAS parents will be absorbed as an
   // absorbedSpouse when that spouse's subtree is built. Processing them
   // as a root first would steal their spouse's children and break the tree.
+  // Also skip marriedIn:true roots — they'll be absorbed by their spouse.
+  const rootIds = new Set(roots.map((r) => r.personId));
   const willBeAbsorbed = new Set(
     roots
-      .filter((r) => spouseRels.some((s) => s.fromPersonId === r.personId && hasParent.has(s.toPersonId)))
+      .filter((r) =>
+        spouseRels.some((s) => s.fromPersonId === r.personId && hasParent.has(s.toPersonId)) ||
+        (r.marriedIn && spouseRels.some((s) => {
+          const otherId = s.fromPersonId === r.personId ? s.toPersonId
+            : s.toPersonId === r.personId ? s.fromPersonId : null;
+          return otherId && rootIds.has(otherId) && !people.find((p) => p.personId === otherId)?.marriedIn;
+        }))
+      )
       .map((r) => r.personId)
   );
 

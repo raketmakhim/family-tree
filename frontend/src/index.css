@@ -214,3 +214,58 @@ input:focus, select:focus { outline: 2px solid #4f46e5; border-color: transparen
 }
 .person-search-dropdown li { padding: 8px 12px; font-size: 14px; cursor: pointer; }
 .person-search-dropdown li:hover { background: #f0f4ff; }
+
+/* ── Mobile ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Use dynamic viewport height so mobile browser toolbar doesn't overlap */
+  .tree-page { height: 100dvh; }
+
+  /* Header — compact strip with just the back button */
+  .tree-page .page-header { padding: 0px 0px; min-height: 0; }
+  .tree-page .page-header h1 { display: none; }
+  .tree-page .page-header button { font-size: 12px; padding: 0px 0px; min-height: 10px; }
+
+  /* Stack tree + side panel vertically */
+  .tree-layout { flex-direction: column; }
+  .tree-canvas { flex: 1; min-height: 0; }
+
+  /* Side panel — compact strip at the bottom */
+  .side-panel {
+    width: 100%;
+    max-height: 20vh;
+    border-left: none;
+    border-top: 1px solid #e2e8f0;
+    padding: 8px 12px;
+    gap: 10px;
+    overflow-y: auto;
+  }
+  .side-panel .editor-actions h4 { margin-bottom: 6px; }
+  .button-stack { gap: 5px; }
+  .side-panel button { min-height: 28px; font-size: 12px; padding: 4px 10px; }
+  .button-stack button, .button-stack label { font-size: 12px; padding: 4px 10px; min-height: 28px; }
+  .person-card { padding: 10px; }
+  .person-card h3 { font-size: 14px; }
+  .editor-actions { gap: 6px; }
+
+  /* Login */
+  .login-card { width: 92vw; padding: 28px 20px; }
+
+  /* Modals — full width with small margin */
+  .modal { width: 92vw; padding: 20px 16px; }
+
+  /* Trees list page */
+  .page { padding: 20px 16px; }
+  .inline-form { flex-direction: column; }
+  .inline-form input { max-width: 100%; }
+  .tree-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+
+  /* Relationship row pickers — stack vertically */
+  .rel-row-pickers { flex-direction: column; }
+
+  /* Touch-friendly tap targets */
+  button { min-height: 44px; }
+  .btn-danger-sm { min-height: 36px; padding: 6px 12px; }
+
+  /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+  input, select { font-size: 16px; }
+}

@@ -168,7 +168,7 @@ export default function TreeViewPage() {
               orientation="vertical"
               translate={translate}
               nodeSize={{ x: 200, y: 160 }}
-              separation={{ siblings: 0.7, nonSiblings: 1 }}
+              separation={{ siblings: 1.1, nonSiblings: 1.6 }}
               renderCustomNodeElement={renderNode}
               pathFunc={stubPath as any}
             />
