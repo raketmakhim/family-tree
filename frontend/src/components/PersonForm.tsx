@@ -1,33 +1,45 @@
 import { useState, FormEvent } from "react";
 import { api } from "../api/client";
-import { Person } from "../types";
+import { Person, Relationship } from "../types";
+import PersonSearch from "./PersonSearch";
 
 interface Props {
   treeId: string;
   person?: Person; // if provided, editing; otherwise creating
+  people?: Person[]; // full tree people list, for adding relationships in edit mode
+  relationships?: Relationship[]; // existing relationships for this person (edit mode)
+  onRemoveRelationship?: (rel: Relationship) => void;
   onSaved: () => void;
   onCancel: () => void;
 }
 
 interface Row { name: string; dob: string; }
+interface RelRow { toPersonId: string; type: "PARENT" | "SIBLING" | "SPOUSE"; }
 
-export default function PersonForm({ treeId, person, onSaved, onCancel }: Props) {
+const defaultRelRow = (): RelRow => ({ toPersonId: "", type: "PARENT" });
+
+export default function PersonForm({ treeId, person, people = [], relationships = [], onRemoveRelationship, onSaved, onCancel }: Props) {
   // Edit mode: single fields
   const [name, setName] = useState(person?.name ?? "");
   const [dob, setDob] = useState(person?.dob ?? "");
   const [marriedIn, setMarriedIn] = useState(person?.marriedIn ?? false);
 
+  // Edit mode: add relationships
+  const [relRows, setRelRows] = useState<RelRow[]>([defaultRelRow()]);
+  const updateRelRow = <K extends keyof RelRow>(i: number, field: K, val: RelRow[K]) =>
+    setRelRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+  const addRelRow = () => setRelRows((prev) => [...prev, defaultRelRow()]);
+  const removeRelRow = (i: number) => setRelRows((prev) => prev.filter((_, idx) => idx !== i));
+
   // Create mode: multiple rows
   const [rows, setRows] = useState<Row[]>([{ name: "", dob: "" }]);
+  const updateRow = (i: number, field: keyof Row, val: string) =>
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+  const addRow = () => setRows((prev) => [...prev, { name: "", dob: "" }]);
+  const removeRow = (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const updateRow = (i: number, field: keyof Row, val: string) =>
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
-
-  const addRow = () => setRows((prev) => [...prev, { name: "", dob: "" }]);
-  const removeRow = (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -40,6 +52,11 @@ export default function PersonForm({ treeId, person, onSaved, onCancel }: Props)
           dob: dob || undefined,
           marriedIn,
         });
+        // Add any filled relationship rows
+        for (const row of relRows) {
+          if (!row.toPersonId) continue;
+          await api.addRelationship(person.personId, row.toPersonId, row.type);
+        }
       } else {
         for (const row of rows) {
           const created = await api.createPerson({
@@ -57,8 +74,10 @@ export default function PersonForm({ treeId, person, onSaved, onCancel }: Props)
     }
   };
 
+  const others = people.filter((p) => p.personId !== person?.personId);
+
   if (person) {
-    // Edit mode — single form
+    // Edit mode — single form + optional relationship rows
     return (
       <form onSubmit={handleSubmit}>
         <h3>Edit person</h3>
@@ -76,6 +95,75 @@ export default function PersonForm({ treeId, person, onSaved, onCancel }: Props)
             Married into the family
           </label>
         </div>
+
+        {others.length > 0 && (
+          <>
+            <p style={{ fontSize: 13, fontWeight: 500, color: "#475569", margin: "16px 0 8px" }}>Add relationships</p>
+            <div className="bulk-rows">
+              {relRows.map((row, i) => (
+                <div key={i} className="bulk-row rel-row">
+                  <div className="rel-row-pickers">
+                    <input
+                      type="text"
+                      value={name || person.name || "This person"}
+                      disabled
+                      style={{ flex: 1, background: "#f1f5f9", color: "#64748b" }}
+                    />
+                    <select
+                      value={row.type}
+                      onChange={(e) => updateRelRow(i, "type", e.target.value as RelRow["type"])}
+                      style={{ width: "auto", flexShrink: 0 }}
+                    >
+                      <option value="PARENT">Parent of</option>
+                      <option value="SIBLING">Sibling of</option>
+                      <option value="SPOUSE">Spouse of</option>
+                    </select>
+                    <PersonSearch
+                      people={others}
+                      value={row.toPersonId}
+                      onChange={(id) => updateRelRow(i, "toPersonId", id)}
+                      placeholder="Search person..."
+                    />
+                  </div>
+                  {relRows.length > 1 && (
+                    <button type="button" className="btn-danger-sm" onClick={() => removeRelRow(i)}>✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" className="btn-secondary" style={{ marginBottom: 14 }} onClick={addRelRow}>
+              + Add another
+            </button>
+          </>
+        )}
+
+        {relationships.length > 0 && (
+          <>
+            <p style={{ fontSize: 13, fontWeight: 500, color: "#475569", margin: "16px 0 8px" }}>Relationships</p>
+            <ul className="rel-list" style={{ marginBottom: 4 }}>
+              {relationships.map((r, i) => {
+                const otherId = r.fromPersonId === person.personId ? r.toPersonId : r.fromPersonId;
+                const other = people.find((p) => p.personId === otherId);
+                const otherName = other?.name || "Unknown";
+                let label: string;
+                if (r.type === "SPOUSE") label = `Spouse of ${otherName}`;
+                else if (r.type === "SIBLING") label = `Sibling of ${otherName}`;
+                else label = r.fromPersonId === person.personId ? `Parent of ${otherName}` : `Child of ${otherName}`;
+                return (
+                  <li key={i}>
+                    <span>{label}</span>
+                    {onRemoveRelationship && (
+                      <button type="button" className="btn-danger-sm" onClick={() => onRemoveRelationship(r)}>✕</button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        
+
         {error && <p className="error">{error}</p>}
         <div className="form-actions">
           <button type="submit" disabled={loading}>{loading ? "Saving..." : "Save"}</button>
