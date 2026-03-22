@@ -76,6 +76,19 @@ aws s3 sync dist s3://family-tree-frontend-522814717404 --delete
 aws cloudfront create-invalidation --distribution-id E39U1THBDUELHX --paths "/*"
 ```
 
+## Todo
+
+- [x] Delete relationship (without deleting the person)
+- [ ] Death date field (dod) for ancestors
+- [ ] Search / jump to person in the tree
+- [ ] Zoom buttons (currently mouse-wheel only)
+- [ ] Notes / bio field on a person
+- [ ] Photo upload (S3, shown in side panel)
+- [ ] Escape key to close modals
+- [ ] Double-click node to edit person
+- [ ] Show relationships in side panel when person is selected (with option to remove)
+- [ ] Rename tree inline from the tree view page
+
 ## Auth
 
 Two global credential sets:

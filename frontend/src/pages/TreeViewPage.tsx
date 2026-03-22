@@ -81,6 +81,11 @@ export default function TreeViewPage() {
     load();
   };
 
+  const handleRemoveRelationship = async (rel: { fromPersonId: string; toPersonId: string; type: "PARENT" | "SIBLING" | "SPOUSE" }) => {
+    await api.removeRelationship(rel.fromPersonId, rel.toPersonId, rel.type);
+    load();
+  };
+
   // Auto-backup: fires silently on first visit of each calendar day
   useEffect(() => {
     if (!data || !treeId) return;
@@ -125,7 +130,14 @@ export default function TreeViewPage() {
   if (error) return <div className="page"><p className="error">{error}</p></div>;
   if (!data) return null;
 
-  const treeData = buildTreeData(data.people, data.relationships);
+  const connectedIds = new Set([
+    ...data.relationships.map((r) => r.fromPersonId),
+    ...data.relationships.map((r) => r.toPersonId),
+  ]);
+  const connectedPeople = data.people.filter((p) => connectedIds.has(p.personId));
+  const unconnectedPeople = data.people.filter((p) => !connectedIds.has(p.personId));
+
+  const treeData = buildTreeData(connectedPeople, data.relationships);
   const treeName = data.tree.name || "Family Tree";
 
   const renderNode = ({ nodeDatum }: CustomNodeElementProps) => (
@@ -148,7 +160,7 @@ export default function TreeViewPage() {
       <div className="tree-layout">
         {/* Tree canvas */}
         <div className="tree-canvas" ref={containerRef}>
-          {data.people.length === 0 ? (
+          {connectedPeople.length === 0 ? (
             <p className="muted centered">No people in this tree yet.</p>
           ) : (
             <Tree
@@ -177,6 +189,19 @@ export default function TreeViewPage() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {unconnectedPeople.length > 0 && (
+            <div className="editor-actions">
+              <h4>No relationships</h4>
+              <ul className="person-select-list">
+                {unconnectedPeople.map((p) => (
+                  <li key={p.personId} onClick={() => setSelectedPerson(p)}>
+                    {p.name || "Unknown"}{p.dob ? ` (${p.dob})` : ""}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -231,6 +256,11 @@ export default function TreeViewPage() {
             <PersonForm
               treeId={treeId!}
               person={modal === "addPerson" && selectedPerson ? selectedPerson : undefined}
+              people={data.people}
+              relationships={selectedPerson ? data.relationships.filter(
+                (r) => r.fromPersonId === selectedPerson.personId || r.toPersonId === selectedPerson.personId
+              ) : []}
+              onRemoveRelationship={handleRemoveRelationship}
               onSaved={handlePersonSaved}
               onCancel={() => setModal(null)}
             />
