@@ -35,7 +35,7 @@ export async function createPerson(body: string | null): Promise<Person> {
 
 export async function updatePerson(personId: string, body: string | null): Promise<void> {
   if (!body) throw { status: 400, message: "Missing request body" };
-  const { name, dob, marriedIn } = JSON.parse(body);
+  const { name, dob, birthOrder, marriedIn } = JSON.parse(body);
 
   const setExpressions: string[] = [];
   const names: Record<string, string> = {};
@@ -49,6 +49,10 @@ export async function updatePerson(personId: string, body: string | null): Promi
   if (dob !== undefined) {
     setExpressions.push("dob = :dob");
     values[":dob"] = dob;
+  }
+  if (birthOrder !== undefined) {
+    setExpressions.push("birthOrder = :birthOrder");
+    values[":birthOrder"] = birthOrder;
   }
   if (marriedIn !== undefined) {
     setExpressions.push("marriedIn = :marriedIn");

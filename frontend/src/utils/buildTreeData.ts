@@ -31,8 +31,11 @@ export function buildTreeData(people: Person[], relationships: Relationship[]): 
   // Global set — once placed in the tree a person won't appear again.
   const placed = new Set<string>();
 
-  function sortByDob(arr: Person[]): Person[] {
+  function sortSiblings(arr: Person[]): Person[] {
     return arr.sort((a, b) => {
+      if (a.birthOrder != null && b.birthOrder != null) return a.birthOrder - b.birthOrder;
+      if (a.birthOrder != null) return -1;
+      if (b.birthOrder != null) return 1;
       if (!a.dob && !b.dob) return 0;
       if (!a.dob) return 1;
       if (!b.dob) return -1;
@@ -86,7 +89,7 @@ export function buildTreeData(people: Person[], relationships: Relationship[]): 
         .forEach((r) => childIdSet.add(r.toPersonId));
     }
 
-    const children = sortByDob(
+    const children = sortSiblings(
       Array.from(childIdSet)
         .map((id) => people.find((p) => p.personId === id))
         .filter((p): p is Person => !!p)

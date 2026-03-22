@@ -22,6 +22,7 @@ export default function PersonForm({ treeId, person, people = [], relationships 
   // Edit mode: single fields
   const [name, setName] = useState(person?.name ?? "");
   const [dob, setDob] = useState(person?.dob ?? "");
+  const [birthOrder, setBirthOrder] = useState<string>(person?.birthOrder?.toString() ?? "");
   const [marriedIn, setMarriedIn] = useState(person?.marriedIn ?? false);
 
   // Edit mode: add relationships
@@ -50,6 +51,7 @@ export default function PersonForm({ treeId, person, people = [], relationships 
         await api.updatePerson(person.personId, {
           name: name || undefined,
           dob: dob || undefined,
+          birthOrder: birthOrder !== "" ? Number(birthOrder) : undefined,
           marriedIn,
         });
         // Add any filled relationship rows
@@ -88,6 +90,10 @@ export default function PersonForm({ treeId, person, people = [], relationships 
         <div className="field">
           <label>Date of birth (optional)</label>
           <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Birth order among siblings (optional, 1 = oldest)</label>
+          <input type="number" min={1} value={birthOrder} onChange={(e) => setBirthOrder(e.target.value)} placeholder="e.g. 1" />
         </div>
         <div className="field">
           <label className="checkbox-label">

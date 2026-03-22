@@ -9,6 +9,7 @@ export interface Person {
   personId: string;
   name?: string;
   dob?: string;
+  birthOrder?: number;
   marriedIn?: boolean;
   createdAt: string;
 }
