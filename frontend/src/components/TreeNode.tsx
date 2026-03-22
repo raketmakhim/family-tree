@@ -5,6 +5,7 @@ interface TreeNodeProps {
   nodeDatum: RawNodeDatum;
   selectedPersonId: string | undefined;
   onSelect: (personId: string) => void;
+  spouseGap?: number;
 }
 
 const R = 28; // circle radius for all nodes
@@ -41,7 +42,7 @@ function NameLabel({ name, dob, cx = 0, fill, muted }: {
   );
 }
 
-export default function TreeNode({ nodeDatum, selectedPersonId, onSelect }: TreeNodeProps) {
+export default function TreeNode({ nodeDatum, selectedPersonId, onSelect, spouseGap = 40 }: TreeNodeProps) {
   const attrs = nodeDatum.attributes ?? {};
   const personId = attrs.personId as string | undefined;
   const spouseId = attrs.spouseId as string | undefined;
@@ -58,7 +59,7 @@ export default function TreeNode({ nodeDatum, selectedPersonId, onSelect }: Tree
 
   if (spouseId) {
     // Couple node — two circles side by side with ♥ between, names below
-    const cx = R + 40;
+    const cx = R + spouseGap;
     return (
       <g>
         {/* Left circle — primary person */}

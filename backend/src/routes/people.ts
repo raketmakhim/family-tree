@@ -11,7 +11,7 @@ import { db, tables } from "../db/client";
 import { Person } from "../types";
 
 const toTitleCase = (s: string) =>
-  s.replace(/\b\w/g, (c) => c.toUpperCase());
+  s.trim().replace(/\s+/g, " ").split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
 export async function listPeople(): Promise<Person[]> {
   const result = await db.send(new ScanCommand({ TableName: tables.people }));
