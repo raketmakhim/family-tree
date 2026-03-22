@@ -2,6 +2,7 @@ export interface Tree {
   treeId: string;
   name?: string;
   createdAt: string;
+  lastBackupDate?: string;
 }
 
 export interface Person {

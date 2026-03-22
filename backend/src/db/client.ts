@@ -10,3 +10,5 @@ export const tables = {
   people: process.env.PEOPLE_TABLE!,
   relationships: process.env.RELATIONSHIPS_TABLE!,
 };
+
+export const backupBucket = process.env.BACKUP_BUCKET!;

@@ -1,7 +1,7 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
 import { requireEditor, requireViewer } from "./middleware/auth";
 import { login } from "./routes/auth";
-import { listTrees, createTree, getTree, updateTree, deleteTree, addMember, removeMember } from "./routes/trees";
+import { listTrees, createTree, getTree, updateTree, deleteTree, addMember, removeMember, backupTree, restoreTree } from "./routes/trees";
 import { listPeople, createPerson, updatePerson, deletePerson } from "./routes/people";
 import { addRelationship, removeRelationship } from "./routes/relationships";
 
@@ -66,6 +66,19 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       await requireEditor(auth);
       await deleteTree(parts[1]);
       return response(200, { message: "Deleted" });
+    }
+
+    // POST /trees/{treeId}/backup
+    if (method === "POST" && parts[0] === "trees" && parts[2] === "backup" && parts.length === 3) {
+      await requireViewer(auth);
+      return response(200, await backupTree(parts[1]));
+    }
+
+    // POST /trees/{treeId}/restore
+    if (method === "POST" && parts[0] === "trees" && parts[2] === "restore" && parts.length === 3) {
+      await requireEditor(auth);
+      await restoreTree(parts[1], event.body ?? null);
+      return response(200, { message: "Restored" });
     }
 
     // POST /trees/{treeId}/members/{personId}

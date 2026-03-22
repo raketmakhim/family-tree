@@ -140,7 +140,8 @@ input:focus, select:focus { outline: 2px solid #4f46e5; border-color: transparen
 .editor-actions h4 { font-size: 13px; color: #64748b; margin-bottom: 10px; }
 
 .button-stack { display: flex; flex-direction: column; gap: 8px; }
-.button-stack button { width: 100%; text-align: left; font-size: 13px; }
+.button-stack button, .button-stack label { width: 100%; text-align: left; font-size: 13px; }
+.button-stack label { display: block; padding: 8px 16px; border-radius: 6px; }
 
 /* Modals */
 .modal-overlay {

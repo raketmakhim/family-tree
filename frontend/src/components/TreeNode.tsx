@@ -16,8 +16,13 @@ export default function TreeNode({ nodeDatum, selectedPersonId, onSelect }: Tree
   const spouseName = attrs.spouseName as string | undefined;
   const spouseDob = attrs.spouseDob as string | undefined;
   const dob = attrs.dob as string | undefined;
+  const spouseMarriedIn = attrs.spouseMarriedIn === "true";
   const isPersonSel = selectedPersonId === personId;
   const isSpouseSel = selectedPersonId === spouseId;
+
+  // Colours — married-in spouses use amber instead of blue
+  const spouseFill = isSpouseSel ? COLORS.marriedIn : (spouseMarriedIn ? COLORS.marriedInLight : COLORS.primaryLight);
+  const spouseStroke = spouseMarriedIn ? COLORS.marriedIn : COLORS.primary;
 
   if (spouseId) {
     // Couple node — two circles side by side with ♥ between, names below
@@ -50,8 +55,8 @@ export default function TreeNode({ nodeDatum, selectedPersonId, onSelect }: Tree
         {/* Right circle — spouse */}
         <g onClick={() => onSelect(spouseId)} style={{ cursor: "pointer" }}>
           <circle cx={cx} cy={0} r={R}
-            fill={isSpouseSel ? COLORS.primary : COLORS.primaryLight}
-            stroke={COLORS.primary} strokeWidth={2} />
+            fill={spouseFill}
+            stroke={spouseStroke} strokeWidth={2} />
           <text textAnchor="middle" x={cx} y={R + 16} fontSize={13} fontWeight={500}
             textRendering="geometricPrecision"
             paintOrder="stroke" stroke="white" strokeWidth={4} strokeLinejoin="round"
