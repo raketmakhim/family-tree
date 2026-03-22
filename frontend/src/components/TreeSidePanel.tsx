@@ -57,7 +57,7 @@ export default function TreeSidePanel({
       )}
 
       {unconnectedPeople.length > 0 && (
-        <div className="editor-actions">
+        <div className="editor-actions desktop-only">
           <h4>No relationships</h4>
           <ul className="person-select-list">
             {unconnectedPeople.map((p) => (
@@ -69,7 +69,7 @@ export default function TreeSidePanel({
         </div>
       )}
 
-      <div className="editor-actions">
+      <div className="editor-actions desktop-only">
         <h4>Spacing</h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <label style={{ fontSize: 12, color: "#475569" }}>
@@ -93,7 +93,7 @@ export default function TreeSidePanel({
         </div>
       </div>
 
-      <div className="editor-actions">
+      <div className="editor-actions desktop-only">
         <h4>Export</h4>
         <div className="button-stack">
           <button className="btn-secondary" onClick={onExportPdf}>Download PDF</button>
@@ -107,7 +107,7 @@ export default function TreeSidePanel({
       </div>
 
       {isEditor && (
-        <div className="editor-actions">
+        <div className="editor-actions desktop-only">
           <h4>Restore</h4>
           <div className="button-stack">
             <label className="btn-secondary" style={{ cursor: "pointer" }}>

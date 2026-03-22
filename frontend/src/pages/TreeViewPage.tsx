@@ -91,7 +91,46 @@ export default function TreeViewPage() {
       editByIdRef.current(personId);
     };
     svg.addEventListener("dblclick", onDblClick, true);
-    return () => svg.removeEventListener("dblclick", onDblClick, true);
+
+    // Long-press to edit (mobile) — cancel if pointer moves more than 10px
+    let pressTimer: ReturnType<typeof setTimeout> | null = null;
+    let startX = 0, startY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const nodeEl = (e.target as Element).closest("[data-person-id]");
+      if (!nodeEl) return;
+      const personId = nodeEl.getAttribute("data-person-id");
+      if (!personId) return;
+      startX = e.clientX; startY = e.clientY;
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        editByIdRef.current(personId);
+      }, 500);
+    };
+    const cancelPress = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) cancelPress();
+    };
+    // Prevent browser context menu appearing after long-press fires the modal
+    const onContextMenu = (e: Event) => { if (!pressTimer) e.preventDefault(); };
+
+    svg.addEventListener("pointerdown", onPointerDown);
+    svg.addEventListener("pointerup", cancelPress);
+    svg.addEventListener("pointermove", onPointerMove);
+    svg.addEventListener("pointercancel", cancelPress);
+    svg.addEventListener("contextmenu", onContextMenu);
+
+    return () => {
+      svg.removeEventListener("dblclick", onDblClick, true);
+      svg.removeEventListener("pointerdown", onPointerDown);
+      svg.removeEventListener("pointerup", cancelPress);
+      svg.removeEventListener("pointermove", onPointerMove);
+      svg.removeEventListener("pointercancel", cancelPress);
+      svg.removeEventListener("contextmenu", onContextMenu);
+      if (pressTimer) clearTimeout(pressTimer);
+    };
   }, [data]);
 
   const openAddMember = async () => {
