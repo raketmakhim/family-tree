@@ -4,14 +4,12 @@ import Tree from "react-d3-tree";
 import { CustomNodeElementProps } from "react-d3-tree";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { Person, TreeData } from "../types";
-import PersonForm from "../components/PersonForm";
-import RelationshipForm from "../components/RelationshipForm";
+import { Person, Relationship, TreeData } from "../types";
 import TreeNode from "../components/TreeNode";
+import TreeSidePanel from "../components/TreeSidePanel";
+import TreeModals, { Modal } from "../components/TreeModals";
 import { buildTreeData, stubPath } from "../utils/buildTreeData";
 import { exportTreePdf } from "../utils/pdfExport";
-
-type Modal = "addPerson" | "addRelationship" | "addMember" | "addChild" | "addSpouse" | null;
 
 export default function TreeViewPage() {
   const { treeId } = useParams<{ treeId: string }>();
@@ -29,9 +27,9 @@ export default function TreeViewPage() {
   const [quickDob, setQuickDob] = useState("");
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState("");
-  const [siblingSpacing, setSiblingSpacing] = useState(0.8);
-  const [familySpacing, setFamilySpacing] = useState(1.2);
-  const [spouseGap, setSpouseGap] = useState(40);
+  const [siblingSpacing, setSiblingSpacing] = useState(0.5);
+  const [familySpacing, setFamilySpacing] = useState(1);
+  const [spouseGap, setSpouseGap] = useState(24);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -56,6 +54,85 @@ export default function TreeViewPage() {
     }
   }, [data]);
 
+  // Auto-backup: fires silently on first visit of each calendar day
+  useEffect(() => {
+    if (!data || !treeId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (data.tree.lastBackupDate === today) return;
+    api.backupTree(treeId).then(({ lastBackupDate }) => {
+      setData((prev) => prev ? { ...prev, tree: { ...prev.tree, lastBackupDate } } : prev);
+    }).catch(() => {});
+  }, [data?.tree.treeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectById = useCallback((personId: string) => {
+    if (!data) return;
+    setSelectedPerson(data.people.find((p) => p.personId === personId) ?? null);
+  }, [data]);
+
+  const editById = useCallback((personId: string) => {
+    if (!data) return;
+    setSelectedPerson(data.people.find((p) => p.personId === personId) ?? null);
+    setModal("addPerson");
+  }, [data]);
+
+  // D3 zoom calls stopImmediatePropagation() on dblclick, so React's onDoubleClick never fires.
+  // Fix: intercept dblclick in capture phase (before D3's bubble-phase handler) and call editById directly.
+  const editByIdRef = useRef(editById);
+  useEffect(() => { editByIdRef.current = editById; }, [editById]);
+  useEffect(() => {
+    const svg = containerRef.current?.querySelector("svg");
+    if (!svg) return;
+    const onDblClick = (e: MouseEvent) => {
+      const nodeEl = (e.target as Element).closest("[data-person-id]");
+      if (!nodeEl) return;
+      const personId = nodeEl.getAttribute("data-person-id");
+      if (!personId) return;
+      e.stopPropagation();
+      editByIdRef.current(personId);
+    };
+    svg.addEventListener("dblclick", onDblClick, true);
+
+    // Long-press to edit (mobile) — cancel if pointer moves more than 10px
+    let pressTimer: ReturnType<typeof setTimeout> | null = null;
+    let startX = 0, startY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const nodeEl = (e.target as Element).closest("[data-person-id]");
+      if (!nodeEl) return;
+      const personId = nodeEl.getAttribute("data-person-id");
+      if (!personId) return;
+      startX = e.clientX; startY = e.clientY;
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        editByIdRef.current(personId);
+      }, 500);
+    };
+    const cancelPress = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) cancelPress();
+    };
+    // Prevent browser context menu appearing after long-press fires the modal
+    const onContextMenu = (e: Event) => { if (!pressTimer) e.preventDefault(); };
+
+    svg.addEventListener("pointerdown", onPointerDown);
+    svg.addEventListener("pointerup", cancelPress);
+    svg.addEventListener("pointermove", onPointerMove);
+    svg.addEventListener("pointercancel", cancelPress);
+    svg.addEventListener("contextmenu", onContextMenu);
+
+    return () => {
+      svg.removeEventListener("dblclick", onDblClick, true);
+      svg.removeEventListener("pointerdown", onPointerDown);
+      svg.removeEventListener("pointerup", cancelPress);
+      svg.removeEventListener("pointermove", onPointerMove);
+      svg.removeEventListener("pointercancel", cancelPress);
+      svg.removeEventListener("contextmenu", onContextMenu);
+      if (pressTimer) clearTimeout(pressTimer);
+    };
+  }, [data]);
+
   const openAddMember = async () => {
     const people = await api.getPeople();
     setAllPeople(people);
@@ -77,37 +154,33 @@ export default function TreeViewPage() {
     load();
   };
 
-  const handlePersonSaved = () => {
-    setModal(null);
-    setSelectedPerson(null);
-    load();
-  };
-
-  const handleRelationshipSaved = () => {
-    setModal(null);
-    load();
-  };
-
-  const handleRemoveRelationship = async (rel: { fromPersonId: string; toPersonId: string; type: "PARENT" | "SIBLING" | "SPOUSE" }) => {
+  const handleRemoveRelationship = async (rel: Relationship) => {
     await api.removeRelationship(rel.fromPersonId, rel.toPersonId, rel.type);
     load();
   };
 
-  const openQuickAdd = (type: "addChild" | "addSpouse") => {
+  const openQuickAdd = (type: "addChild" | "addParent" | "addSpouse") => {
     setQuickName("");
     setQuickDob("");
     setQuickError("");
     setModal(type);
   };
 
-  const handleQuickAdd = async (relType: "PARENT" | "SPOUSE") => {
+  const handleQuickAdd = async (modalType: "addChild" | "addParent" | "addSpouse") => {
     if (!treeId || !selectedPerson) return;
     setQuickLoading(true);
     setQuickError("");
     try {
       const created = await api.createPerson({ name: quickName || undefined, dob: quickDob || undefined });
       await api.addMember(treeId, created.personId);
-      await api.addRelationship(selectedPerson.personId, created.personId, relType);
+      if (modalType === "addParent") {
+        // new person is parent OF selected person
+        await api.addRelationship(created.personId, selectedPerson.personId, "PARENT");
+      } else if (modalType === "addChild") {
+        await api.addRelationship(selectedPerson.personId, created.personId, "PARENT");
+      } else {
+        await api.addRelationship(selectedPerson.personId, created.personId, "SPOUSE");
+      }
       setModal(null);
       load();
     } catch (err: unknown) {
@@ -116,16 +189,6 @@ export default function TreeViewPage() {
       setQuickLoading(false);
     }
   };
-
-  // Auto-backup: fires silently on first visit of each calendar day
-  useEffect(() => {
-    if (!data || !treeId) return;
-    const today = new Date().toISOString().slice(0, 10);
-    if (data.tree.lastBackupDate === today) return;
-    api.backupTree(treeId).then(({ lastBackupDate }) => {
-      setData((prev) => prev ? { ...prev, tree: { ...prev.tree, lastBackupDate } } : prev);
-    }).catch(() => {}); // silent — backup failure shouldn't block the UI
-  }, [data?.tree.treeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownloadJson = () => {
     const payload = JSON.stringify(
@@ -152,11 +215,6 @@ export default function TreeViewPage() {
     load();
   };
 
-  const selectById = useCallback((personId: string) => {
-    if (!data) return;
-    setSelectedPerson(data.people.find((p) => p.personId === personId) ?? null);
-  }, [data]);
-
   if (loading) return <div className="page"><p>Loading...</p></div>;
   if (error) return <div className="page"><p className="error">{error}</p></div>;
   if (!data) return null;
@@ -167,7 +225,6 @@ export default function TreeViewPage() {
   ]);
   const connectedPeople = data.people.filter((p) => connectedIds.has(p.personId));
   const unconnectedPeople = data.people.filter((p) => !connectedIds.has(p.personId));
-
   const treeData = buildTreeData(connectedPeople, data.relationships);
   const treeName = data.tree.name || "Family Tree";
 
@@ -182,7 +239,6 @@ export default function TreeViewPage() {
 
   return (
     <div className="tree-page">
-      {/* Header */}
       <header className="page-header">
         <button className="btn-secondary" onClick={() => navigate("/trees")}>← Trees</button>
         <h1>{treeName}</h1>
@@ -190,8 +246,7 @@ export default function TreeViewPage() {
       </header>
 
       <div className="tree-layout">
-        {/* Tree canvas */}
-        <div className="tree-canvas" ref={containerRef}>
+        <div className="tree-canvas" ref={containerRef} onClick={() => setSelectedPerson(null)}>
           {connectedPeople.length === 0 ? (
             <p className="muted centered">No people in this tree yet.</p>
           ) : (
@@ -207,181 +262,47 @@ export default function TreeViewPage() {
           )}
         </div>
 
-        {/* Side panel */}
-        <aside className="side-panel">
-          {selectedPerson && (
-            <div className="person-card">
-              <h3>{selectedPerson.name || "Unknown"}</h3>
-              {selectedPerson.dob && <p>Born: {selectedPerson.dob}</p>}
-              {isEditor && (
-                <div className="button-stack">
-                  <button onClick={() => setModal("addPerson")}>Edit person</button>
-                  <button onClick={() => openQuickAdd("addChild")}>+ Add child</button>
-                  <button onClick={() => openQuickAdd("addSpouse")}>+ Add spouse</button>
-                  <button className="btn-danger" onClick={handleRemoveMember}>
-                    Remove from tree
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {unconnectedPeople.length > 0 && (
-            <div className="editor-actions">
-              <h4>No relationships</h4>
-              <ul className="person-select-list">
-                {unconnectedPeople.map((p) => (
-                  <li key={p.personId} onClick={() => setSelectedPerson(p)}>
-                    {p.name || "Unknown"}{p.dob ? ` (${p.dob})` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="editor-actions">
-            <h4>Spacing</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Siblings: {siblingSpacing.toFixed(1)}
-                <input type="range" min={0.1} max={3} step={0.1} value={siblingSpacing}
-                  onChange={(e) => setSiblingSpacing(parseFloat(e.target.value))}
-                  style={{ width: "100%", marginTop: 2 }} />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Cross-family: {familySpacing.toFixed(1)}
-                <input type="range" min={0.1} max={3} step={0.1} value={familySpacing}
-                  onChange={(e) => setFamilySpacing(parseFloat(e.target.value))}
-                  style={{ width: "100%", marginTop: 2 }} />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Spouse gap: {spouseGap}px
-                <input type="range" min={0} max={120} step={4} value={spouseGap}
-                  onChange={(e) => setSpouseGap(parseInt(e.target.value))}
-                  style={{ width: "100%", marginTop: 2 }} />
-              </label>
-            </div>
-          </div>
-
-          <div className="editor-actions">
-            <h4>Export</h4>
-            <div className="button-stack">
-              <button className="btn-secondary" onClick={() => exportTreePdf(treeName, treeData)}>
-                Download PDF
-              </button>
-              <button className="btn-secondary" onClick={handleDownloadJson}>
-                Download JSON
-              </button>
-            </div>
-            {data.tree.lastBackupDate && (
-              <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                Last backed up: {data.tree.lastBackupDate}
-              </p>
-            )}
-          </div>
-
-          {isEditor && (
-            <div className="editor-actions">
-              <h4>Restore</h4>
-              <div className="button-stack">
-                <label className="btn-secondary" style={{ cursor: "pointer" }}>
-                  Upload backup JSON
-                  <input type="file" accept=".json" style={{ display: "none" }} onChange={handleRestore} />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {isEditor && (
-            <div className="editor-actions">
-              <h4>Editor actions</h4>
-              <div className="button-stack">
-                <button onClick={() => { setSelectedPerson(null); setModal("addPerson"); }}>
-                  + Create person
-                </button>
-                <button onClick={openAddMember}>+ Add existing person</button>
-                <button onClick={() => setModal("addRelationship")}>+ Add relationship</button>
-              </div>
-            </div>
-          )}
-        </aside>
+        <TreeSidePanel
+          selectedPerson={selectedPerson}
+          unconnectedPeople={unconnectedPeople}
+          isEditor={isEditor}
+          siblingSpacing={siblingSpacing} onSiblingSpacing={setSiblingSpacing}
+          familySpacing={familySpacing} onFamilySpacing={setFamilySpacing}
+          spouseGap={spouseGap} onSpouseGap={setSpouseGap}
+          lastBackupDate={data.tree.lastBackupDate}
+          onEditPerson={() => setModal("addPerson")}
+          onAddChild={() => openQuickAdd("addChild")}
+          onAddParent={() => openQuickAdd("addParent")}
+          onAddSpouse={() => openQuickAdd("addSpouse")}
+          onRemoveMember={handleRemoveMember}
+          onSelectPerson={setSelectedPerson}
+          onExportPdf={() => exportTreePdf(treeName, treeData)}
+          onDownloadJson={handleDownloadJson}
+          onRestore={handleRestore}
+          onCreatePerson={() => { setSelectedPerson(null); setModal("addPerson"); }}
+          onOpenAddMember={openAddMember}
+          onAddRelationship={() => setModal("addRelationship")}
+        />
       </div>
 
-      {/* Modals */}
-      {modal === "addPerson" && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <PersonForm
-              treeId={treeId!}
-              person={modal === "addPerson" && selectedPerson ? selectedPerson : undefined}
-              people={data.people}
-              relationships={selectedPerson ? data.relationships.filter(
-                (r) => r.fromPersonId === selectedPerson.personId || r.toPersonId === selectedPerson.personId
-              ) : []}
-              onRemoveRelationship={handleRemoveRelationship}
-              onSaved={handlePersonSaved}
-              onCancel={() => setModal(null)}
-            />
-          </div>
-        </div>
-      )}
-
-      {modal === "addRelationship" && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <RelationshipForm
-              people={data.people}
-              onSaved={handleRelationshipSaved}
-              onCancel={() => setModal(null)}
-            />
-          </div>
-        </div>
-      )}
-
-      {(modal === "addChild" || modal === "addSpouse") && selectedPerson && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{modal === "addChild" ? "Add child" : "Add spouse"} for {selectedPerson.name || "Unknown"}</h3>
-            <form onSubmit={(e) => { e.preventDefault(); handleQuickAdd(modal === "addChild" ? "PARENT" : "SPOUSE"); }}>
-              <div className="field">
-                <label>Name (optional)</label>
-                <input type="text" value={quickName} onChange={(e) => setQuickName(e.target.value)} placeholder="Full name" autoFocus />
-              </div>
-              <div className="field">
-                <label>Date of birth (optional)</label>
-                <input type="date" value={quickDob} onChange={(e) => setQuickDob(e.target.value)} />
-              </div>
-              {quickError && <p className="error">{quickError}</p>}
-              <div className="form-actions">
-                <button type="submit" disabled={quickLoading}>{quickLoading ? "Saving..." : "Create"}</button>
-                <button type="button" className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modal === "addMember" && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Add existing person</h3>
-            {allPeople.filter((p) => !data.people.find((m) => m.personId === p.personId)).length === 0 ? (
-              <p className="muted">All people are already in this tree.</p>
-            ) : (
-              <ul className="person-select-list">
-                {allPeople
-                  .filter((p) => !data.people.find((m) => m.personId === p.personId))
-                  .map((p) => (
-                    <li key={p.personId} onClick={() => handleAddMember(p.personId)}>
-                      {p.name || "Unknown"} {p.dob ? `(${p.dob})` : ""}
-                    </li>
-                  ))}
-              </ul>
-            )}
-            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
+      <TreeModals
+        modal={modal}
+        onClose={() => setModal(null)}
+        selectedPerson={selectedPerson}
+        treeId={treeId!}
+        people={data.people}
+        relationships={data.relationships}
+        allPeople={allPeople}
+        quickName={quickName} onQuickName={setQuickName}
+        quickDob={quickDob} onQuickDob={setQuickDob}
+        quickLoading={quickLoading}
+        quickError={quickError}
+        onPersonSaved={() => { setModal(null); setSelectedPerson(null); load(); }}
+        onRelationshipSaved={() => { setModal(null); load(); }}
+        onRemoveRelationship={handleRemoveRelationship}
+        onQuickAdd={handleQuickAdd}
+        onAddMember={handleAddMember}
+      />
     </div>
   );
 }
