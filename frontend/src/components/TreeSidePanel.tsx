@@ -13,6 +13,7 @@ interface Props {
   lastBackupDate?: string;
   onEditPerson: () => void;
   onAddChild: () => void;
+  onAddParent: () => void;
   onAddSpouse: () => void;
   onRemoveMember: () => void;
   onSelectPerson: (p: Person) => void;
@@ -32,7 +33,7 @@ export default function TreeSidePanel({
   familySpacing, onFamilySpacing,
   spouseGap, onSpouseGap,
   lastBackupDate,
-  onEditPerson, onAddChild, onAddSpouse, onRemoveMember,
+  onEditPerson, onAddChild, onAddParent, onAddSpouse, onRemoveMember,
   onSelectPerson,
   onExportPdf, onDownloadJson, onRestore,
   onCreatePerson, onOpenAddMember, onAddRelationship,
@@ -47,6 +48,7 @@ export default function TreeSidePanel({
             <div className="button-stack">
               <button onClick={onEditPerson}>Edit person</button>
               <button onClick={onAddChild}>+ Add child</button>
+              <button onClick={onAddParent}>+ Add parent</button>
               <button onClick={onAddSpouse}>+ Add spouse</button>
               <button className="btn-danger" onClick={onRemoveMember}>
                 Remove from tree

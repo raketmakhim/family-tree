@@ -14,7 +14,7 @@ interface Props {
 }
 
 interface Row { name: string; dob: string; }
-interface RelRow { toPersonId: string; type: "PARENT" | "SIBLING" | "SPOUSE"; }
+interface RelRow { toPersonId: string; type: "PARENT" | "CHILD_OF" | "SIBLING" | "SPOUSE"; }
 
 const defaultRelRow = (): RelRow => ({ toPersonId: "", type: "PARENT" });
 
@@ -61,7 +61,12 @@ export default function PersonForm({ treeId, person, people = [], relationships 
         // Add any filled relationship rows
         for (const row of relRows) {
           if (!row.toPersonId) continue;
-          await api.addRelationship(person.personId, row.toPersonId, row.type);
+          if (row.type === "CHILD_OF") {
+            // toPersonId is the parent, person is the child
+            await api.addRelationship(row.toPersonId, person.personId, "PARENT");
+          } else {
+            await api.addRelationship(person.personId, row.toPersonId, row.type);
+          }
         }
       } else {
         for (const row of rows) {
@@ -125,6 +130,7 @@ export default function PersonForm({ treeId, person, people = [], relationships 
                       style={{ width: "auto", flexShrink: 0 }}
                     >
                       <option value="PARENT">Parent of</option>
+                      <option value="CHILD_OF">Child of</option>
                       <option value="SIBLING">Sibling of</option>
                       <option value="SPOUSE">Spouse of</option>
                     </select>

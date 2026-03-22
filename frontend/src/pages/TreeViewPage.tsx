@@ -159,21 +159,28 @@ export default function TreeViewPage() {
     load();
   };
 
-  const openQuickAdd = (type: "addChild" | "addSpouse") => {
+  const openQuickAdd = (type: "addChild" | "addParent" | "addSpouse") => {
     setQuickName("");
     setQuickDob("");
     setQuickError("");
     setModal(type);
   };
 
-  const handleQuickAdd = async (relType: "PARENT" | "SPOUSE") => {
+  const handleQuickAdd = async (modalType: "addChild" | "addParent" | "addSpouse") => {
     if (!treeId || !selectedPerson) return;
     setQuickLoading(true);
     setQuickError("");
     try {
       const created = await api.createPerson({ name: quickName || undefined, dob: quickDob || undefined });
       await api.addMember(treeId, created.personId);
-      await api.addRelationship(selectedPerson.personId, created.personId, relType);
+      if (modalType === "addParent") {
+        // new person is parent OF selected person
+        await api.addRelationship(created.personId, selectedPerson.personId, "PARENT");
+      } else if (modalType === "addChild") {
+        await api.addRelationship(selectedPerson.personId, created.personId, "PARENT");
+      } else {
+        await api.addRelationship(selectedPerson.personId, created.personId, "SPOUSE");
+      }
       setModal(null);
       load();
     } catch (err: unknown) {
@@ -265,6 +272,7 @@ export default function TreeViewPage() {
           lastBackupDate={data.tree.lastBackupDate}
           onEditPerson={() => setModal("addPerson")}
           onAddChild={() => openQuickAdd("addChild")}
+          onAddParent={() => openQuickAdd("addParent")}
           onAddSpouse={() => openQuickAdd("addSpouse")}
           onRemoveMember={handleRemoveMember}
           onSelectPerson={setSelectedPerson}

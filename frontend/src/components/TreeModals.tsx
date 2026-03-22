@@ -2,7 +2,7 @@ import { Person, Relationship } from "../types";
 import PersonForm from "./PersonForm";
 import RelationshipForm from "./RelationshipForm";
 
-export type Modal = "addPerson" | "addRelationship" | "addMember" | "addChild" | "addSpouse" | null;
+export type Modal = "addPerson" | "addRelationship" | "addMember" | "addChild" | "addSpouse" | "addParent" | null;
 
 interface Props {
   modal: Modal;
@@ -21,7 +21,7 @@ interface Props {
   onPersonSaved: () => void;
   onRelationshipSaved: () => void;
   onRemoveRelationship: (rel: Relationship) => void;
-  onQuickAdd: (type: "PARENT" | "SPOUSE") => void;
+  onQuickAdd: (modalType: "addChild" | "addSpouse" | "addParent") => void;
   onAddMember: (personId: string) => void;
 }
 
@@ -66,10 +66,10 @@ export default function TreeModals({
     />
   );
 
-  if ((modal === "addChild" || modal === "addSpouse") && selectedPerson) return overlay(
+  if ((modal === "addChild" || modal === "addSpouse" || modal === "addParent") && selectedPerson) return overlay(
     <>
-      <h3>{modal === "addChild" ? "Add child" : "Add spouse"} for {selectedPerson.name || "Unknown"}</h3>
-      <form onSubmit={(e) => { e.preventDefault(); onQuickAdd(modal === "addChild" ? "PARENT" : "SPOUSE"); }}>
+      <h3>{modal === "addChild" ? "Add child" : modal === "addParent" ? "Add parent" : "Add spouse"} for {selectedPerson.name || "Unknown"}</h3>
+      <form onSubmit={(e) => { e.preventDefault(); onQuickAdd(modal); }}>
         <div className="field">
           <label>Name (optional)</label>
           <input type="text" value={quickName} onChange={(e) => onQuickName(e.target.value)} placeholder="Full name" autoFocus />
