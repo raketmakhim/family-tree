@@ -42,6 +42,9 @@ input:focus, select:focus { outline: 2px solid #4f46e5; border-color: transparen
 
 .form-actions { display: flex; gap: 8px; margin-top: 16px; }
 
+.checkbox-label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; cursor: pointer; font-weight: normal !important; }
+.checkbox-label input { width: auto; }
+
 .error { color: #ef4444; font-size: 13px; margin: 6px 0; }
 .muted { color: #94a3b8; font-size: 14px; }
 
@@ -177,3 +180,33 @@ input:focus, select:focus { outline: 2px solid #4f46e5; border-color: transparen
   font-size: 14px;
 }
 .person-select-list li:hover { background: #f0f4ff; }
+
+/* Bulk create rows */
+.bulk-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.bulk-row { display: flex; align-items: center; gap: 8px; }
+.bulk-row input { flex: 1; }
+
+/* Relationship row */
+.rel-row { flex-direction: column; align-items: stretch; }
+.rel-row-pickers { display: flex; gap: 8px; align-items: center; }
+.rel-row-pickers .person-search { flex: 1; }
+
+/* Person search typeahead */
+.person-search { position: relative; }
+.person-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 200;
+  margin-top: 2px;
+}
+.person-search-dropdown li { padding: 8px 12px; font-size: 14px; cursor: pointer; }
+.person-search-dropdown li:hover { background: #f0f4ff; }

@@ -43,7 +43,7 @@ export const api = {
   getPeople: () => request<Person[]>("GET", "/people"),
   createPerson: (data: { name?: string; dob?: string }) =>
     request<Person>("POST", "/people", data),
-  updatePerson: (personId: string, data: { name?: string; dob?: string }) =>
+  updatePerson: (personId: string, data: { name?: string; dob?: string; marriedIn?: boolean }) =>
     request<void>("PUT", `/people/${personId}`, data),
   deletePerson: (personId: string) => request<void>("DELETE", `/people/${personId}`),
 
