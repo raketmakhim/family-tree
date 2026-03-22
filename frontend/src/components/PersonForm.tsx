@@ -23,7 +23,11 @@ export default function PersonForm({ treeId, person, people = [], relationships 
   const [name, setName] = useState(person?.name ?? "");
   const [dob, setDob] = useState(person?.dob ?? "");
   const [birthOrder, setBirthOrder] = useState<string>(person?.birthOrder?.toString() ?? "");
-  const [marriedIn, setMarriedIn] = useState(person?.marriedIn ?? false);
+  // Pre-check married-in if explicitly set, or if auto-detected:
+  // person is the toPersonId in a SPOUSE rel and has no parents of their own.
+  const hasSomeParent = relationships.some(r => r.type === "PARENT" && r.toPersonId === person?.personId);
+  const isAutoMarriedIn = !hasSomeParent && relationships.some(r => r.type === "SPOUSE" && r.toPersonId === person?.personId);
+  const [marriedIn, setMarriedIn] = useState(person?.marriedIn ?? isAutoMarriedIn);
 
   // Edit mode: add relationships
   const [relRows, setRelRows] = useState<RelRow[]>([defaultRelRow()]);

@@ -122,7 +122,9 @@ export function buildTreeData(people: Person[], relationships: Relationship[]): 
   const willBeAbsorbed = new Set(
     roots
       .filter((r) =>
+        // Root whose spouse has parents — will be absorbed when that spouse's subtree is built.
         spouseRels.some((s) => s.fromPersonId === r.personId && hasParent.has(s.toPersonId)) ||
+        // Explicitly marked as married-in and has a non-married-in root spouse.
         (r.marriedIn && spouseRels.some((s) => {
           const otherId = s.fromPersonId === r.personId ? s.toPersonId
             : s.toPersonId === r.personId ? s.fromPersonId : null;

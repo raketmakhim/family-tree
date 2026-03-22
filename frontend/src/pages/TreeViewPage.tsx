@@ -29,6 +29,9 @@ export default function TreeViewPage() {
   const [quickDob, setQuickDob] = useState("");
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState("");
+  const [siblingSpacing, setSiblingSpacing] = useState(0.8);
+  const [familySpacing, setFamilySpacing] = useState(1.2);
+  const [spouseGap, setSpouseGap] = useState(40);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -173,6 +176,7 @@ export default function TreeViewPage() {
       nodeDatum={nodeDatum}
       selectedPersonId={selectedPerson?.personId}
       onSelect={selectById}
+      spouseGap={spouseGap}
     />
   );
 
@@ -196,7 +200,7 @@ export default function TreeViewPage() {
               orientation="vertical"
               translate={translate}
               nodeSize={{ x: 200, y: 160 }}
-              separation={{ siblings: 1.1, nonSiblings: 1.6 }}
+              separation={{ siblings: siblingSpacing, nonSiblings: familySpacing }}
               renderCustomNodeElement={renderNode}
               pathFunc={stubPath as any}
             />
@@ -234,6 +238,30 @@ export default function TreeViewPage() {
               </ul>
             </div>
           )}
+
+          <div className="editor-actions">
+            <h4>Spacing</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Siblings: {siblingSpacing.toFixed(1)}
+                <input type="range" min={0.1} max={3} step={0.1} value={siblingSpacing}
+                  onChange={(e) => setSiblingSpacing(parseFloat(e.target.value))}
+                  style={{ width: "100%", marginTop: 2 }} />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Cross-family: {familySpacing.toFixed(1)}
+                <input type="range" min={0.1} max={3} step={0.1} value={familySpacing}
+                  onChange={(e) => setFamilySpacing(parseFloat(e.target.value))}
+                  style={{ width: "100%", marginTop: 2 }} />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Spouse gap: {spouseGap}px
+                <input type="range" min={0} max={120} step={4} value={spouseGap}
+                  onChange={(e) => setSpouseGap(parseInt(e.target.value))}
+                  style={{ width: "100%", marginTop: 2 }} />
+              </label>
+            </div>
+          </div>
 
           <div className="editor-actions">
             <h4>Export</h4>

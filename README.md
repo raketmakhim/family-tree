@@ -88,6 +88,8 @@ aws cloudfront create-invalidation --distribution-id E39U1THBDUELHX --paths "/*"
 - [ ] Double-click node to edit person
 - [ ] Show relationships in side panel when person is selected (with option to remove)
 - [ ] Rename tree inline from the tree view page
+- [ ] Mobile: replace bottom side panel with a floating action sheet / bottom drawer that pops up when a node is tapped
+- [ ] Admin page for a privileged account to list and delete people/trees (separate role: "admin")
 
 ## Auth
 
